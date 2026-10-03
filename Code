@@ -1,0 +1,224 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from collections import Counter
+import os
+
+
+class Sandpile:
+    def __init__(self, m=51, h=4, center=None, seed=None):
+        self.m = m
+        self.h = h
+        self.rng = np.random.default_rng(seed)
+
+        
+        self.grid = np.zeros((m, m), dtype=np.int32)
+
+    
+        if center is None:
+            center = (m // 2, m // 2)
+        self.center = center
+
+        # Накопленная статистика по лавинам
+        self.avalanche_sizes = []      # площадь лавины (число обвалов)
+        self.avalanche_durations = []  # длительность лавины (число шагов)
+        self.grains_lost = []          # песок, ушедший за границу за лавину
+
+
+    def add_grain(self, i=None, j=None):
+        """Добавить одну песчинку в ячейку (i, j)."""
+        if i is None or j is None:
+            i, j = self.center
+        self.grid[i, j] += 1
+
+
+    def relax(self):
+     
+        n_collapses = 0
+        n_steps = 0
+        n_lost = 0
+
+        while True:
+            unstable = self.grid >= self.h
+            if not unstable.any():
+                break
+
+            n_steps += 1
+            n_collapses += int(unstable.sum())
+
+            # Синхронное обновление: считаем приращения по всем клеткам
+            delta = np.zeros_like(self.grid)
+
+            # Обрушение: -h в самой клетке
+            delta[unstable] -= self.h
+            # сосед сверху получает +1 от клетки (i, j) -> сдвиг вниз
+            up = np.zeros_like(self.grid)
+            up[1:, :] = unstable[:-1, :]
+      
+            down = np.zeros_like(self.grid)
+            down[:-1, :] = unstable[1:, :]
+        
+            left = np.zeros_like(self.grid)
+            left[:, 1:] = unstable[:, :-1]
+
+   
+            right = np.zeros_like(self.grid)
+            right[:, :-1] = unstable[:, 1:]
+
+            n_lost += int(unstable[0, :].sum())  
+            n_lost += int(unstable[-1, :].sum()) 
+            n_lost += int(unstable[:, 0].sum())   
+            n_lost += int(unstable[:, -1].sum())
+
+            delta += up + down + left + right
+            self.grid += delta
+
+        return n_collapses, n_steps, n_lost
+
+
+    def step(self):
+        self.add_grain()
+        size, duration, lost = self.relax()
+
+        self.avalanche_sizes.append(size)
+        self.avalanche_durations.append(duration)
+        self.grains_lost.append(lost)
+
+        return size, duration, lost
+
+
+def plot_state(pile, title="Песчаная куча", ax=None):
+
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(6, 6))
+
+    cmap = plt.cm.viridis
+    im = ax.imshow(pile.grid, cmap=cmap, vmin=0, vmax=pile.h)
+    ax.set_title(title)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04, label="Число песчинок")
+    return ax
+
+
+def plot_distributions(pile, outdir="."):
+  
+    os.makedirs(outdir, exist_ok=True)
+
+    def loglog_hist(data, xlabel, fname):
+        if len(data) == 0:
+            return
+        data = np.asarray(data)
+        data = data[data > 0]
+        if len(data) == 0:
+            return
+        values, counts = np.unique(data, return_counts=True)
+        fig, ax = plt.subplots(figsize=(6, 5))
+        ax.loglog(values, counts, "o", markersize=4)
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel("Число событий")
+        ax.set_title(f"Распределение: {xlabel}")
+        ax.grid(True, which="both", alpha=0.3)
+        fig.tight_layout()
+        fig.savefig(os.path.join(outdir, fname), dpi=150)
+        plt.close(fig)
+
+    loglog_hist(pile.avalanche_sizes,
+                "Площадь лавины (число обвалов)",
+                "dist_avalanche_size.png")
+    loglog_hist(pile.avalanche_durations,
+                "Длительность лавины (шагов)",
+                "dist_avalanche_duration.png")
+    loglog_hist(pile.grains_lost,
+                "Песчинок ушло через границу",
+                "dist_grains_lost.png")
+
+def main():
+
+    M = 51            # размер решётки
+    H = 4             # порог обрушения
+    N_STEPS = 20000   # число тактов (добавлений песчинки)
+    SEED = 42
+
+    pile = Sandpile(m=M, h=H, seed=SEED)
+
+    print(f"Модель песчаной кучи: m={M}, h={H}, тактов={N_STEPS}")
+
+    # Промежуточные снимки для визуализации
+    snapshots = {}
+    snapshot_steps = {0, 100, 1000, 5000, N_STEPS}
+
+    for t in range(1, N_STEPS + 1):
+        size, duration, lost = pile.step()
+        if t in snapshot_steps:
+            snapshots[t] = pile.grid.copy()
+        if t % 2000 == 0:
+            print(f"  такт {t:>6}: последняя лавина "
+                  f"size={size}, duration={duration}, lost={lost}")
+
+    # ---------------- Итоговая статистика ----------------
+    sizes = np.array(pile.avalanche_sizes)
+    durations = np.array(pile.avalanche_durations)
+    lost = np.array(pile.grains_lost)
+
+    print("\n=== Статистика ===")
+    print(f"Всего тактов:            {N_STEPS}")
+    print(f"Средний размер лавины:   {sizes.mean():.3f}")
+    print(f"Максимальный размер:     {sizes.max()}")
+    print(f"Средняя длительность:    {durations.mean():.3f}")
+    print(f"Максимальная длит.:      {durations.max()}")
+    print(f"Всего ушло песчинок:     {lost.sum()}")
+    print(f"Доля тактов без обвалов: "
+          f"{(sizes == 0).mean() * 100:.2f}%")
+
+    # Проверка степенного закона (грубая оценка)
+    positive = sizes[sizes > 0]
+    if len(positive) > 10:
+        vals, cnts = np.unique(positive, return_counts=True)
+        mask = cnts >= 3
+        if mask.sum() > 2:
+            x = np.log(vals[mask])
+            y = np.log(cnts[mask])
+            k, b = np.polyfit(x, y, 1)
+            print(f"Оценка показателя степенного закона "
+                  f"(наклон log-log): {k:.3f}")
+
+
+
+    n_snap = len(snapshots)
+    fig, axes = plt.subplots(1, n_snap, figsize=(4 * n_snap, 4.5))
+    if n_snap == 1:
+        axes = [axes]
+    for ax, (t, grid) in zip(axes, sorted(snapshots.items())):
+        im = ax.imshow(grid, cmap="viridis", vmin=0, vmax=H)
+        ax.set_title(f"t = {t}")
+        ax.set_xticks([])
+        ax.set_yticks([])
+    fig.suptitle("Эволюция песчаной кучи (состояние решётки)", fontsize=13)
+    fig.tight_layout()
+    fig.savefig("снимки состояния.png", dpi=150)
+    plt.close(fig)
+
+    # Распределения
+    plot_distributions(pile, outdir=".")
+
+
+    fig, ax = plt.subplots(figsize=(10, 4))
+    ax.plot(sizes, linewidth=0.5, color="steelblue")
+    ax.set_xlabel("Такт")
+    ax.set_ylabel("Размер лавины")
+    ax.set_title("Размер лавин во времени")
+    ax.set_yscale("symlog")
+    fig.tight_layout()
+    fig.savefig("динамика размеров лавин.png", dpi=150)
+    plt.close(fig)
+
+    print("\nСохранены файлы:")
+    print("  снимки состояния.png  ")
+    print("  динамика размеров лавин.png  ")
+    print("  dist_avalanche_size.png  ")
+    print("  dist_avalanche_duration.png  ")
+    print("  dist_grains_lost.png  ")
+
+
+if __name__ == "__main__":
+    main()
