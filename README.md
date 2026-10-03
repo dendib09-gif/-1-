@@ -7,14 +7,14 @@
 # -3- Правила перехода
 Правило перехода локальное и однородное, и зависит от окрестностей Неймана. 
 Обвалы происходят, пока все клетки не станут устойчивыми. Метод relax():
-  while True:
+  {while True:
       unstable = self.grid >= self.h
       if not unstable.any():
         break
       ...
       delta[unstable] -= self.h
       ...
-      self.grid += delta
+      self.grid += delta}
 # -4- Математическая модель 
 1) Пространство m x m.
 2) Множество состояний s = {0,1,...,h}/
