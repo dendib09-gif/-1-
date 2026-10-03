@@ -7,37 +7,46 @@
 # -3- Правила перехода
 Правило перехода локальное и однородное, и зависит от окрестностей Неймана. 
 Обвалы происходят, пока все клетки не станут устойчивыми. Метод relax():
-  'while True:
+```
+ while True:
       unstable = self.grid >= self.h
       if not unstable.any():
         break
       ...
       delta[unstable] -= self.h
       ...
-      self.grid += delta'
+      self.grid += delta
+```
 # -4- Математическая модель 
 1) Пространство m x m.
-2) Множество состояний s = {0,1,...,h}/
-3) Окрестность Неймана
+2) Множество состояний s = {0,1,...,h}.
+3) Окрестность Неймана.
 4) На каждом такте в выбранную ячейку добавляется одна песчинка:
-   def add_grain(self, i=None, j=None):
+```
+  def add_grain(self, i=None, j=None):
     if i is None or j is None:
         i, j = self.center
     self.grid[i, j] += 1
+```
 5) Один такт - это добавление песчинки и релаксация до устойчивого состояния:
-   def step(self):
+```
+  def step(self):
     self.add_grain()
     size, duration, lost = self.relax()
     ...
     return size, duration, lost
+```
 # -5- Ограничения
 Реализованы так, что при сдвиге маски (unstable) клетки на краю поля формируют вклад в соседа, который находится вне массива. Этот вклад учитывается в счетчике потерь (n_lost):
+```
     n_lost += int(unstable[0, :].sum())   # ушли вверх
     n_lost += int(unstable[-1, :].sum())  # ушли вниз
     n_lost += int(unstable[:, 0].sum())   # ушли влево
     n_lost += int(unstable[:, -1].sum())  # ушли вправо
+```
 # -6- Модель реализована в виде класса
 Класс Sandpile:
+```
 class Sandpile:
     def __init__(self, m=51, h=4, center=None, seed=None):
         ...
@@ -47,14 +56,17 @@ class Sandpile:
         ...
     def step(self):
         ...
+```
 где m - размер решетки, h - порог обрушения, grid - текущее состояние поля, center - координаты ячейки.
   # -7- Результаты
 Результатом кода данной модели "Песчаная буря" являются:
+```
    print("\nСохранены файлы:")
    print("  снимки состояния.png  ")
    print("  динамика размеров лавин.png  ")
    print("  dist_avalanche_size.png  ")
    print("  dist_avalanche_duration.png  ")
    print("  dist_grains_lost.png  ")
+```
 
    
