@@ -14,8 +14,7 @@
       ...
       delta[unstable] -= self.h
       ...
-      self.grid += delta
-      '
+      self.grid += delta'
 # -4- Математическая модель 
 1) Пространство m x m.
 2) Множество состояний s = {0,1,...,h}/
