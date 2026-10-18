@@ -67,7 +67,7 @@ class Sandpile:
    print("  снимки состояния.png  ")
    print("  динамика размеров лавин.png  ")
    print("  dist_avalanche_duration.png  ")
-   print("  dist_grains_lost.png  ")
+   print("  dist_avalanche_size.png   ")
 ```
 
    
